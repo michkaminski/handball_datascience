@@ -1439,7 +1439,7 @@ th { font-size: 11px; color: var(--mu); font-weight: 600; }
 .ts { background: rgba(255, 200, 0, .2); border-radius: 3px; padding: 0 2px; }
 .ev .note { font-size: 11px; color: var(--mu); } .empty { text-align: center; color: var(--mu); }
 .tag { font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 8px; background: #f3e5f5; color: #8e44ad; } .tag.x { background: #eceff1; color: #546e7a; }
-.tag.sv { background: #e8f5e9; color: #2e7d32; } .ev tr.sv td { color: #2f5d34; } .gkl { font-size: 12px; color: var(--mu); margin-top: 6px; }
+.tag.sv { background: #e8f5e9; color: #2e7d32; } .ev tr.sv td { color: #2f5d34; } .pl.gk { margin-top: 10px; }
 .chip { font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 8px; background: #fff4e0; color: #b7791f; }
 .chip.cD, .chip.cN { background: #fde8e8; color: var(--b); } .chip.cW { background: #fff9c4; color: #8a6d00; }
 .sig { text-align: right; color: var(--mu); font-size: 12px; margin-top: 6px; }
@@ -1471,7 +1471,21 @@ body.pdf .legend { font-size: 9px; margin-top: 0; } body.pdf .sig { font-size: 9
 `;
   const sevenTxt = s => `${s.s7g}/${s.s7}`;
   const kt = t => keeperStats(t).reduce((s, x) => ({ sv: s.sv + x.sv, ga: s.ga + x.ga }), { sv: 0, ga: 0 }), kA = kt('A'), kB = kt('B');
-  const keepers = t => { const k = keepersTxt(t, false); return k ? `<div class="gkl">Bramkarze (obrony / celne rzuty): ${k}</div>` : ''; };
+  const keepers = t => {
+    const o = opp(t), rows = keeperStats(t).filter(x => x.sv + x.ga).map(x => {
+      const p7 = S.saves.filter(s => s.team === t && s.nr === x.nr && s.pen).length +
+        S.goals.filter(g => g.team === o && g.pen && g.miss && g.saved && g.gk === x.nr).length;
+      const s7 = p7 + S.goals.filter(g => g.team === o && g.pen && !g.miss && g.gk === x.nr).length;
+      return { ...x, p7, s7, p: person(t, x.nr) };
+    });
+    if (!rows.length) return '';
+    const top = Math.max(...rows.map(r => r.sv)), tot = rows.reduce((s, r) => ({ sv: s.sv + r.sv, ga: s.ga + r.ga, p7: s.p7 + r.p7, s7: s.s7 + r.s7 }), { sv: 0, ga: 0, p7: 0, s7: 0 });
+    const body = rows.map(r => `<tr><td class="nr">${r.nr}</td><td>${esc(r.p[1])}</td><td class="num gl${r.sv && r.sv === top && rows.length > 1 ? ' best' : ''}">${nz(r.sv)}</td>` +
+      `<td class="num">${nz(r.ga)}</td><td class="num">${r.sv + r.ga}</td><td class="num">${svPct(r.sv, r.ga)}%</td><td class="num">${r.s7 ? r.p7 + '/' + r.s7 : nz(0)}</td></tr>`).join('');
+    return `<table class="pl gk"><thead><tr><th class="nr">Nr</th><th>Bramkarz</th><th class="num" title="obronione rzuty">Obr.</th><th class="num" title="stracone bramki">Str.</th><th class="num" title="celne rzuty na bramkę">Rzuty</th><th class="num" title="skuteczność obron">%</th><th class="num" title="rzuty karne: obronione / rzuty">7m</th></tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><td></td><td>Razem</td><td class="num gl">${tot.sv}</td><td class="num">${tot.ga}</td><td class="num">${tot.sv + tot.ga}</td><td class="num">${svPct(tot.sv, tot.ga)}%</td><td class="num">${tot.p7}/${tot.s7}</td></tr></tfoot></table>`;
+  };
   const gkCmp = gkOn() ? cmp('Obrony bramkarzy', `${kA.sv}/${kA.sv + kA.ga}`, `${kB.sv}/${kB.sv + kB.ga}`, kA.sv, kB.sv) +
     cmp('Skuteczność bramkarzy', svPct(kA.sv, kA.ga) + '%', svPct(kB.sv, kB.ga) + '%', svPct(kA.sv, kA.ga), svPct(kB.sv, kB.ga)) : '';
   return `<!doctype html>
