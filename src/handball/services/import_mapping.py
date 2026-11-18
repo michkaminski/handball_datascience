@@ -86,6 +86,14 @@ class ZprpImportMapper:
                         wynik[kolumna] = None
         return wynik
 
+    def wycofanie(self, wartosc: Any) -> bool | None:
+        if wartosc in (None, "", {}, []):
+            return None
+        tekst = str(wartosc).strip().lower()
+        if tekst in ("true", "false"):
+            return tekst == "true"
+        return bool(self.liczba(tekst))
+
     def dodaj(
         self, tabela: str, klucz: dict[str, Any], dane: dict[str, Any], uzupelnij: bool = False
     ) -> None:
@@ -308,7 +316,6 @@ class ZprpImportMapper:
             },
             {
                 "zamiana": "zamiana",
-                "wycofany": "wycofany",
                 "czy_remis": "czy_remis",
                 "protokol_zatwierdzony": "protokol_zatwierdz",
             },
@@ -318,6 +325,8 @@ class ZprpImportMapper:
                 "data_ostatniej_zmiany": "DataOstatnieZmiany",
             },
         )
+        if "wycofany" in r:
+            dane["wycofany"] = self.wycofanie(r["wycofany"])
         for strona in ("gosp", "gosc"):
             pole = "ID_zespoly_" + strona
             if pole in r:

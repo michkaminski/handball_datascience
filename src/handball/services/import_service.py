@@ -183,9 +183,11 @@ class ImportService:
                     try:
                         url, tresc = self._klient.pobierz(zadanie)
                         self.magazyn.zapisz_zrodlo(identyfikator, klucz, url, tresc)
-                        ZprpImportMapper(roboczy, klucz).przetworz(
+                        kandydat = deepcopy(roboczy)
+                        ZprpImportMapper(kandydat, klucz).przetworz(
                             zadanie, json.loads(tresc.decode("utf-8-sig"))
                         )
+                        roboczy = kandydat
                     except BladImportu as blad:
                         proby = roboczy.nieudane_probowania.get(klucz, 0) + 1
                         roboczy.nieudane_probowania[klucz] = proby
@@ -223,6 +225,16 @@ class ImportService:
             if przebieg.status != "PODGLAD":
                 raise BladImportu("Zapis wymaga ukończonego podglądu zmian.")
             try:
+                pobrane = set(przebieg.wykonane)
+                if any(
+                    zrodlo not in pobrane
+                    for rekord in przebieg.rekordy
+                    for zrodlo in [rekord.zrodlo, *rekord.zrodla]
+                ):
+                    raise BladImportu(
+                        "Podgląd zawiera rekordy z pominiętych odpowiedzi API. Rozpocznij nowy "
+                        "import; ten przebieg nie zostanie zapisany."
+                    )
                 przebieg.id_przebieg_bazy = self._repozytorium.zastosuj(przebieg)
                 przebieg.status = "ZAPISANO"
                 przebieg.blad = None

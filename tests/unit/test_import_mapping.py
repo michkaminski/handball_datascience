@@ -132,3 +132,16 @@ def test_brak_tabel_w_rozgrywkach_nie_blokuje_importu(dokument: object) -> None:
         ZadaniePobrania("pokaz_tabele_spis.php", {}, "tabele_spis", {"cid": 12007}), dokument
     )
     assert przebieg.rekordy == [] and przebieg.kolejka == []
+
+
+@pytest.mark.parametrize(
+    ("wartosc", "oczekiwane"),
+    [("0", False), ("3507", True), ("1", True), ("true", True), ("false", False), (None, None)],
+)
+def test_wycofany_to_identyfikator_druzyny_albo_flaga(
+    wartosc: object, oczekiwane: bool | None
+) -> None:
+    mapper = _mapper()
+    mapper.mecz(_mecz(wycofany=wartosc), {"cid": 12007, "did": 1})
+    mecz = next(r for r in mapper._przebieg.rekordy if r.tabela == "mecze")
+    assert mecz.dane["wycofany"] is oczekiwane

@@ -364,3 +364,47 @@ def test_import_jednego_meczu_odrzuca_nieznany_mecz(tmp_path: Path, id_mecz: int
         serwis.rozpocznij_mecz(id_mecz)
     assert klient.zapytania == []
     assert serwis.magazyn.historia() == []
+
+
+class CzesciowoBlednaKolejkaTestClient(ImportTestClient):
+    def pobierz(self, zadanie: ZadaniePobrania) -> tuple[str, bytes]:
+        url, tresc = super().pobierz(zadanie)
+        if zadanie.endpoint != "pokaz_mecze.php":
+            return url, tresc
+        poprawny = next(iter(json.loads(tresc).values()))
+        bledny = {**poprawny, "Id": "206599", "zamiana": "x", "ID_zespoly_gosp": "15999"}
+        return url, json.dumps({"1": poprawny, "2": bledny}).encode()
+
+
+def test_pominiete_zadanie_nie_zostawia_czesciowych_rekordow(tmp_path: Path) -> None:
+    repo = ImportTestRepository()
+    serwis = ImportService(ImportFileStore(tmp_path), CzesciowoBlednaKolejkaTestClient(), repo)
+    przebieg = serwis.rozpocznij([12007])
+    for _ in range(20):
+        przebieg = serwis.krok(przebieg.id)
+        if przebieg.status in ("PODGLAD", "ZAPISANO"):
+            break
+    assert przebieg.status == "PODGLAD", przebieg.blad
+    assert [p["endpoint"] for p in przebieg.pominiete] == ["pokaz_mecze.php"]
+    assert not any(r.tabela == "mecze" for r in przebieg.rekordy)
+    assert not any(r.tabela == "zespoly" and r.klucz == {"id": 15890} for r in przebieg.rekordy)
+    pobrane = set(przebieg.wykonane)
+    assert all(z in pobrane for r in przebieg.rekordy for z in [r.zrodlo, *r.zrodla])
+    assert serwis.zastosuj(przebieg.id).status == "ZAPISANO"
+
+
+def test_zapis_odrzuca_podglad_z_rekordami_z_pominietych_odpowiedzi(tmp_path: Path) -> None:
+    repo = ImportTestRepository()
+    magazyn = ImportFileStore(tmp_path)
+    serwis = ImportService(magazyn, ImportTestClient(), repo)
+    przebieg = serwis.rozpocznij([12007])
+    for _ in range(20):
+        przebieg = serwis.krok(przebieg.id)
+        if przebieg.status in ("PODGLAD", "ZAPISANO"):
+            break
+    with magazyn.edytuj(przebieg.id) as edytowany:
+        edytowany.rekordy[0].zrodla.append("pominiete-zrodlo")
+    wynik = serwis.zastosuj(przebieg.id)
+    assert wynik.status == "PODGLAD"
+    assert wynik.blad is not None and "pominiętych" in wynik.blad
+    assert repo.zapisy == 0
